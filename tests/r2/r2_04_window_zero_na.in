@@ -1,0 +1,6 @@
+QUERIES
+PRESSURE_DROP well_id=W1 window=0
+DATA
+W1,100,0,0,8
+W1,110,0,0,3
+END
