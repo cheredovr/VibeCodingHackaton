@@ -51,61 +51,123 @@ public class Solution {
         }
     }
 
-    private static final class PressureValue {
-        long index;
+    private static final class DropStackNode {
         double value;
+        double min;
+        double max;
+        double bestDrop;
 
-        PressureValue(long index, double value) {
-            this.index = index;
+        DropStackNode(double value, double min, double max, double bestDrop) {
             this.value = value;
+            this.min = min;
+            this.max = max;
+            this.bestDrop = bestDrop;
+        }
+    }
+
+    private static final class DropStack {
+        private final ArrayDeque<DropStackNode> stack = new ArrayDeque<>();
+
+        boolean isEmpty() {
+            return stack.isEmpty();
+        }
+
+        double min() {
+            return stack.peek().min;
+        }
+
+        double max() {
+            return stack.peek().max;
+        }
+
+        double best() {
+            return stack.peek().bestDrop;
+        }
+
+        void pushAppend(double value) {
+            if (stack.isEmpty()) {
+                stack.push(new DropStackNode(value, value, value, Double.NEGATIVE_INFINITY));
+                return;
+            }
+            DropStackNode prev = stack.peek();
+            double min = Math.min(prev.min, value);
+            double max = Math.max(prev.max, value);
+            double best = Math.max(prev.bestDrop, prev.max - value);
+            stack.push(new DropStackNode(value, min, max, best));
+        }
+
+        void pushPrepend(double value) {
+            if (stack.isEmpty()) {
+                stack.push(new DropStackNode(value, value, value, Double.NEGATIVE_INFINITY));
+                return;
+            }
+            DropStackNode prev = stack.peek();
+            double min = Math.min(prev.min, value);
+            double max = Math.max(prev.max, value);
+            double best = Math.max(prev.bestDrop, value - prev.min);
+            stack.push(new DropStackNode(value, min, max, best));
+        }
+
+        double popValue() {
+            return stack.pop().value;
         }
     }
 
     private static final class PressureDropTracker {
         final int window;
-        long index;
-        final ArrayDeque<PressureValue> minDeque;
-        final ArrayDeque<PressureValue> maxDeque;
+        long size;
+        final DropStack left;
+        final DropStack right;
         boolean hasBest;
         double bestDrop;
 
         PressureDropTracker(int window) {
             this.window = window;
-            this.index = 0L;
-            this.minDeque = new ArrayDeque<>();
-            this.maxDeque = new ArrayDeque<>();
+            this.size = 0L;
+            this.left = new DropStack();
+            this.right = new DropStack();
             this.hasBest = false;
             this.bestDrop = 0.0;
         }
 
         void add(double pressure) {
-            while (!minDeque.isEmpty() && minDeque.peekLast().value >= pressure) {
-                minDeque.removeLast();
-            }
-            minDeque.addLast(new PressureValue(index, pressure));
+            right.pushAppend(pressure);
+            size++;
 
-            while (!maxDeque.isEmpty() && maxDeque.peekLast().value <= pressure) {
-                maxDeque.removeLast();
-            }
-            maxDeque.addLast(new PressureValue(index, pressure));
-
-            long windowStart = index - window + 1L;
-            while (!minDeque.isEmpty() && minDeque.peekFirst().index < windowStart) {
-                minDeque.removeFirst();
-            }
-            while (!maxDeque.isEmpty() && maxDeque.peekFirst().index < windowStart) {
-                maxDeque.removeFirst();
+            if (size > window) {
+                if (left.isEmpty()) {
+                    while (!right.isEmpty()) {
+                        left.pushPrepend(right.popValue());
+                    }
+                }
+                left.popValue();
+                size--;
             }
 
-            if (index + 1L >= window) {
-                double currentDrop = maxDeque.peekFirst().value - minDeque.peekFirst().value;
+            if (size == window) {
+                double currentDrop = currentDrop();
                 if (!hasBest || currentDrop > bestDrop) {
                     bestDrop = currentDrop;
                     hasBest = true;
                 }
             }
+        }
 
-            index++;
+        private double currentDrop() {
+            double best = Double.NEGATIVE_INFINITY;
+            if (!left.isEmpty()) {
+                best = Math.max(best, left.best());
+            }
+            if (!right.isEmpty()) {
+                best = Math.max(best, right.best());
+            }
+            if (!left.isEmpty() && !right.isEmpty()) {
+                best = Math.max(best, left.max() - right.min());
+            }
+            if (best == Double.NEGATIVE_INFINITY || best < 0.0) {
+                return 0.0;
+            }
+            return best;
         }
     }
 
